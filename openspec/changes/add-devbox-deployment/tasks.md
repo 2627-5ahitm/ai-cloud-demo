@@ -79,9 +79,9 @@
 
 ## 6. Leftovers
 
-- [ ] 6.1 Put the project under version control (`git init`, initial commit of `k8s/`, `CLAUDE.md`,
+- [x] 6.1 Put the project under version control (`git init`, initial commit of `k8s/`, `CLAUDE.md`,
       `openspec/`) and verify `git log` shows the commit and `git status` is clean
-- [ ] 6.2 Add a `.gitignore` that keeps local scratch output out of the repo and verify
+- [x] 6.2 Add a `.gitignore` that keeps local scratch output out of the repo and verify
       `git status --porcelain` stays empty after a build/test run
 - [ ] 6.3 Fill in `openspec/config.yaml` with the now-decided tech stack and conventions and verify
       `openspec instructions proposal --change <name> --json` shows the context
