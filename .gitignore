@@ -1,0 +1,19 @@
+# IDE
+.idea/
+*.iml
+
+# OS
+.DS_Store
+
+# Local Claude Code settings (machine-specific)
+.claude/settings.local.json
+
+# Build output / dependencies (apps are built inside the DevBox, but in case
+# anything is copied back out with `kubectl cp`)
+node_modules/
+target/
+dist/
+build/
+
+# Logs
+*.log
