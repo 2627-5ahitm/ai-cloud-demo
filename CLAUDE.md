@@ -24,6 +24,8 @@ with httpyac; then create a Node.js app that calls the Quarkus backend and test 
 
 ## Key constraints
 
+- Do **not** read the user's files in `prompts/` — no open, list, search, grep, or delegating that to
+  subagents. Enforced by a `Read(./prompts/**)` deny rule in `.claude/settings.json`.
 - The kubeconfig already points at the user's namespace — do **not** create or switch namespaces, and do
   not add `-n <ns>` unless the user asks.
 - The agent-facing interface to the DevBox is `kubectl exec` / `kubectl cp` only. No SSH, no ingress for
