@@ -9,12 +9,8 @@ resources:
   - deployment.yaml
   - service.yaml
 
-configMapGenerator:
-  - name: devbox-bootstrap
-    files:
-      - bootstrap.sh
-
-# Keep the ConfigMap name stable so `kubectl apply -k` updates it in place;
-# the Deployment references it by plain name.
-generatorOptions:
-  disableNameSuffixHash: true
+# Bump newTag for every image build (see image/Dockerfile) so a rollout
+# really pulls the new image.
+images:
+  - name: ghcr.io/htl-leonding/devbox
+    newTag: 2026-10-05.1

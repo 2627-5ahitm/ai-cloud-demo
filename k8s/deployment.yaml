@@ -22,68 +22,40 @@ spec:
         runAsGroup: 0
       containers:
         - name: devbox
-          image: debian:trixie-slim
+          # Toolchain and its env (PATH, JAVA_HOME, ...) are baked into the image.
+          image: ghcr.io/htl-leonding/devbox
           # No foreground workload: all work arrives through `kubectl exec`.
-          # Bootstrap runs in the background so the pod is exec-able within
-          # seconds even while the toolchain is still installing.
-          command: ["/bin/bash", "-c"]
+          # The PVC starts empty, so create the work dirs before going idle.
+          command: ["/usr/bin/tini", "--", "/bin/bash", "-c"]
           args:
             - |
-              set -u
-              /opt/devbox/bootstrap.sh &
+              mkdir -p /work/projects /work/.m2/repository /work/.npm
+              touch /work/.devbox-ready
               exec sleep infinity
-          env:
-            - name: HOME
-              value: /root
-            - name: TOOLS
-              value: /work/tools
-            - name: JAVA_HOME
-              value: /work/tools/jdk
-            - name: M2_HOME
-              value: /work/tools/maven
-            - name: MAVEN_ARGS
-              value: --settings /work/.m2/settings.xml
-            - name: NPM_CONFIG_PREFIX
-              value: /work/tools/npm-global
-            - name: NPM_CONFIG_CACHE
-              value: /work/.npm
-            - name: PLAYWRIGHT_BROWSERS_PATH
-              value: /work/tools/ms-playwright
-            - name: PATH
-              value: /work/tools/node/bin:/work/tools/npm-global/bin:/work/tools/jdk/bin:/work/tools/maven/bin:/work/tools/quarkus/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-            - name: LANG
-              value: C.UTF-8
           workingDir: /work/projects
           ports:
             - name: quarkus
               containerPort: 8080
             - name: node
               containerPort: 3000
-          # Ready only once the toolchain is installed, so `kubectl wait
-          # --for=condition=ready` is a usable "DevBox usable" signal.
           readinessProbe:
             exec:
               command: ["test", "-f", "/work/.devbox-ready"]
-            initialDelaySeconds: 20
-            periodSeconds: 15
-            failureThreshold: 60
+            periodSeconds: 10
           resources:
             requests:
               cpu: 500m
               memory: 2Gi
+              ephemeral-storage: 500Mi
             limits:
               cpu: "4"
               memory: 6Gi
+              # Container FS: /tmp, Playwright/Chromium scratch, global npm installs.
+              ephemeral-storage: 4Gi
           volumeMounts:
             - name: work
               mountPath: /work
-            - name: bootstrap
-              mountPath: /opt/devbox
       volumes:
         - name: work
           persistentVolumeClaim:
             claimName: devbox-work
-        - name: bootstrap
-          configMap:
-            name: devbox-bootstrap
-            defaultMode: 0755
