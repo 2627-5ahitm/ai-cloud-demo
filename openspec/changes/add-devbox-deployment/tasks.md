@@ -87,3 +87,17 @@
       `openspec instructions proposal --change <name> --json` shows the context
 - [ ] 6.4 Sync this change's delta spec into `openspec/specs/` with `/opsx:sync` and verify
       `openspec validate --strict` passes
+
+## 7. Redeploy on LeoCloud (permanent namespace)
+
+- [x] 7.1 Install the LeoCloud skill into `.claude/skills/leocloud/` and verify the skill's checks
+      (kubectl/leocloud, Docker, ghcr.io login, context `leocloud`) all pass
+- [x] 7.2 Write `image/Dockerfile` with the whole toolchain under `/opt/tools`, build it for
+      `linux/amd64`, push `ghcr.io/htl-leonding/devbox:2026-10-05.1` and verify the push succeeds
+- [x] 7.3 Switch `k8s/` to the image (drop `bootstrap.sh` and its ConfigMap, PVC 2Gi, ephemeral-storage
+      500Mi/4Gi, `images:` tag in kustomization) and verify the rollout succeeds and the PVC is bound
+- [x] 7.4 Verify every tool version by non-interactive `kubectl exec` and that Maven uses
+      `/work/.m2/repository`
+- [x] 7.5 Re-run the acceptance test: Quarkus 6 unit tests + 6/6 httpyac; Node 7/7 httpyac + 1
+      Playwright test + 502 on backend failure
+- [x] 7.6 Update `k8s/README.md`, `CLAUDE.md` and the delta spec to the new design

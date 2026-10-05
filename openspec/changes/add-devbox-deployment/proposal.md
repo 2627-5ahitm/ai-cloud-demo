@@ -11,6 +11,13 @@ Quarkus backend + httpyac + Playwright). It is written retroactively — the imp
 deployed and verified in namespace `student-testc20` — so that the behaviour is captured as specs
 rather than living only in the manifests.
 
+**Revision 2026-10-05 (LeoCloud).** The scratch namespace was deleted; the DevBox was redeployed into
+the permanent namespace `student-t-stuetz`. LeoCloud caps a volume claim at 2Gi and requires workloads to
+run from an image built from the project and pushed to a registry, so runtime provisioning into a 20Gi
+PVC is replaced by a prebuilt image (`image/Dockerfile` → `ghcr.io/htl-leonding/devbox:<tag>`) and a 2Gi
+PVC for projects and caches only. `bootstrap.sh` and its ConfigMap are removed. The list below describes
+the original deployment; the spec and the design revision describe the current one.
+
 ## What Changes
 
 - New `k8s/` deployment, applied with `kubectl apply -k k8s/`:

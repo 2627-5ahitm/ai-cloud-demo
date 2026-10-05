@@ -31,6 +31,32 @@ Constraints discovered in the target cluster (namespace `student-testc20`, conte
 - Keeping applications started inside the DevBox running across a pod restart.
 - Pinning exact tool versions reproducibly (see Risks).
 
+## Revision 2026-10-05: prebuilt image on LeoCloud
+
+Supersedes the decisions below on runtime provisioning, tarball installs into the PVC, unpinned
+versions, marker files, the background bootstrap, the provisioning readiness probe and the bootstrap
+ConfigMap. The rest (single replica, `sleep infinity`, `Recreate`, root user, ClusterIP service,
+no namespace in manifests, tool env in the container environment) still holds.
+
+**Bake the toolchain into an image.** The permanent namespace is on LeoCloud, whose rules allow a
+volume claim of at most 2Gi and require workloads to run from an image built from the project and
+pushed to a registry — "public base image + script from a ConfigMap" is explicitly ruled out. The
+toolchain plus browsers do not fit in 2Gi anyway. `image/Dockerfile` installs everything under
+`/opt/tools` on `debian:trixie-slim`; the image is built with `docker buildx --platform linux/amd64`
+(all nodes are amd64, the laptop is Apple Silicon) and pushed to `ghcr.io/htl-leonding/devbox`. The
+user's laptop already has Docker and a ghcr.io login, which removes the original objection.
+
+**Pin versions as build args.** Maven, Quarkus CLI, httpyac and Playwright are pinned (`ARG`); Node
+and the JDK take the newest release of their LTS major at build time. Every build gets a new tag,
+referenced via `images:` in `kustomization.yaml`, so a rollout really pulls the new image.
+
+**PVC holds only state that grows.** `/work` (2Gi) keeps projects, the Maven repository (set in
+`$M2_HOME/conf/settings.xml`) and the npm cache. The container gets `ephemeral-storage` 500Mi request
+/ 4Gi limit for `/tmp` and browser scratch, within LeoCloud's 10Gi per container / 20Gi per namespace.
+
+**Readiness = workspace initialised.** The start command creates the `/work` directories and touches
+`/work/.devbox-ready`; the probe checks that file. Ready arrives as soon as the image is pulled.
+
 ## Decisions
 
 **Provision at runtime into a PVC instead of building an image.**

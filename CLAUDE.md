@@ -52,42 +52,48 @@ conventions and per-artifact rules there once decisions are made.
 
 `.agents/` mirrors `.claude/skills/` for other agent runtimes — keep the two in sync if a skill changes.
 
-## The DevBox deployment (`k8s/`)
+## The DevBox deployment (`k8s/`, `image/`)
 
 | File | What |
 |------|------|
-| `pvc.yaml` | `devbox-work`, 20Gi, StorageClass `default` (NFS) |
-| `deployment.yaml` | one pod, `debian:trixie-slim`, `sleep infinity`, PVC on `/work`, env (PATH/JAVA_HOME/...) baked into the pod spec |
-| `service.yaml` | ClusterIP `devbox`, ports 8080 (Quarkus) / 3000 (Node) |
-| `bootstrap.sh` | idempotent toolchain install into `/work/tools`, mounted via ConfigMap at `/opt/devbox` |
-| `kustomization.yaml` | `configMapGenerator` for `bootstrap.sh`, no name-suffix hash, no namespace |
+| `image/Dockerfile` | `debian:trixie-slim` + whole toolchain under `/opt/tools`, versions pinned as `ARG`s, tool env as `ENV` |
+| `k8s/pvc.yaml` | `devbox-work`, 2Gi (LeoCloud maximum), default StorageClass |
+| `k8s/deployment.yaml` | one pod, image `ghcr.io/htl-leonding/devbox`, `sleep infinity`, PVC on `/work`, ephemeral-storage 500Mi/4Gi |
+| `k8s/service.yaml` | ClusterIP `devbox`, ports 8080 (Quarkus) / 3000 (Node) |
+| `k8s/kustomization.yaml` | resources + `images:` with the current tag, no namespace |
 
-No container registry and no image build: the pod runs the public Debian image and installs the toolchain
-into the PVC on first start (~7-8 min). Marker files in `/work/tools/.markers` make restarts skip the work.
-apt packages are ephemeral and reinstalled on every start (`.deb` cache on the PVC).
+The toolchain lives in the image, built `linux/amd64` and pushed to ghcr.io (`docker login ghcr.io` already
+done by the user). New build → new tag → bump `newTag` in `kustomization.yaml` → `kubectl apply -k k8s/`.
+The PVC only holds projects, the Maven repo and the npm cache.
 
-Cluster facts (namespace `student-testc20`, context `leocloud`): k8s server 1.30, StorageClass `default`
-(nfs-subdir provisioner), PodSecurity **baseline** (so `runAsUser: 0` and apt are fine, privileged is not),
-no ResourceQuota / LimitRange.
+LeoCloud rules (skill `.claude/skills/leocloud/SKILL.md`, follow it for anything deployment-related): PVC max
+2Gi and never enlarged beyond; ephemeral-storage default 2Gi/container, max 10Gi/container, 20Gi per
+namespace (quota `leocloud-node-disk`); PodSecurity **baseline** (`runAsUser: 0` fine, privileged not);
+ClusterIP services only; images must be built from the project and pushed, not public base images + scripts.
+Never delete a PVC or the namespace without explicit user confirmation.
 
-Installed and verified: Node 24 LTS + npm 11, Temurin JDK 21 LTS, Maven 3.9, Quarkus CLI 3.39,
-httpyac 6.16, Playwright 1.63 + Chromium, curl 8.14, git, jq, build-essential.
+Cluster facts (namespace `student-t-stuetz`, context `leocloud`): k8s server 1.30, StorageClass `default`
+(nfs-subdir provisioner). The namespace also runs an unrelated `tombox` deployment with its own PVCs — leave
+it alone.
+
+Installed and verified: Node 24.21 + npm 11.19, Temurin JDK 21.0.12 LTS, Maven 3.9.16, Quarkus CLI 3.39.5,
+httpyac 6.16.7, Playwright 1.63.0 + Chromium, curl 8.14, git, jq, build-essential.
 
 ## Commands
 
 ```bash
+docker buildx build --platform linux/amd64 -t ghcr.io/htl-leonding/devbox:<tag> --push image/
 kubectl apply -k k8s/                                        # deploy / update
-kubectl wait --for=condition=ready pod -l app=devbox --timeout=20m
-kubectl exec deploy/devbox -- tail -f /work/bootstrap.log    # bootstrap progress
-kubectl exec -it deploy/devbox -- bash -l                    # shell
-kubectl exec deploy/devbox -- bash -lc 'cd /work/projects/<app> && mvn -B package'
+kubectl rollout status deploy/devbox
+kubectl exec -it deploy/devbox -- bash                       # shell
+kubectl exec deploy/devbox -- bash -c 'cd /work/projects/<app> && mvn -B package'
 kubectl cp ./src "$(kubectl get pod -l app=devbox -o name | cut -d/ -f2)":/work/projects/<app>/src
 kubectl port-forward deploy/devbox 8080:8080                 # reach an app locally
 ```
 
-Paths inside the pod: projects `/work/projects`, toolchains `/work/tools`, Maven repo
-`/work/.m2/repository`, bootstrap log `/work/bootstrap.log`, readiness marker `/work/.devbox-ready`.
+Paths inside the pod: projects `/work/projects`, toolchains `/opt/tools`, Maven repo
+`/work/.m2/repository`, readiness marker `/work/.devbox-ready`.
 
 ## Not yet set up
 
-No git repo and no CI.
+No CI.

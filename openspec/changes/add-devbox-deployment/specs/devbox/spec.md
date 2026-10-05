@@ -60,8 +60,9 @@ non-interactive `kubectl exec ... -- <command>` finds every tool without sourcin
 ### Requirement: Persistent workspace and caches
 
 Project sources and build caches SHALL live on a persistent volume so they survive pod restarts and
-rescheduling. Persisted state MUST include the projects directory, the installed toolchain, the Maven
-local repository, the npm cache and the Playwright browsers.
+rescheduling. Persisted state MUST include the projects directory, the Maven local repository and the
+npm cache. The volume claim MUST request no more than the platform's per-claim maximum (2Gi on
+LeoCloud); the toolchain therefore lives in the image, not on the volume.
 
 #### Scenario: Projects survive a restart
 
@@ -76,46 +77,42 @@ local repository, the npm cache and the Playwright browsers.
 - **THEN** the dependencies are taken from the persisted local repository instead of being downloaded
   again
 
-### Requirement: Idempotent, registry-free provisioning
+### Requirement: Toolchain shipped as a prebuilt image
 
-The DevBox SHALL be created from a publicly available base image and provision its toolchain itself,
-without requiring a container image build or a container registry. Provisioning MUST be idempotent: a
-restart reuses everything already present and MUST NOT redo completed installation work.
+The DevBox SHALL run from a container image that is built from this repository (`image/Dockerfile`)
+for `linux/amd64`, contains the whole toolchain, and is pushed to a container registry (ghcr.io)
+under a new tag for every build. The pod MUST NOT install the toolchain at start-up, and MUST NOT run
+a public base image with provisioning scripts injected via ConfigMap.
 
-#### Scenario: First start provisions the toolchain
+#### Scenario: Fresh deployment is usable without provisioning
 
-- **WHEN** the DevBox is applied to an empty namespace
-- **THEN** the toolchain is installed into the persistent volume
-- **AND** no registry credentials or image push are required
+- **WHEN** the DevBox is applied to an empty namespace with an empty volume
+- **THEN** every tool of the toolchain requirement is executable as soon as the pod is Ready
+- **AND** nothing is downloaded or installed into the volume at start-up
 
-#### Scenario: Restart skips completed work
+#### Scenario: Restart is as fast as the image pull
 
-- **GIVEN** the toolchain is already installed on the persistent volume
+- **GIVEN** the image is already present on the node
 - **WHEN** the pod is restarted
-- **THEN** the already-installed components are skipped
-- **AND** the DevBox becomes usable markedly faster than on the first start
+- **THEN** the DevBox becomes Ready within seconds and the workspace volume is unchanged
 
-#### Scenario: A failing install step does not block access
+#### Scenario: A toolchain update is a new image tag
 
-- **WHEN** one provisioning step fails (for example a download is unavailable)
-- **THEN** the remaining steps still run
-- **AND** the pod stays reachable via `kubectl exec` so the failure can be diagnosed from its log
+- **WHEN** a tool version is changed in the Dockerfile
+- **THEN** a new image is built and pushed under a new tag and the manifests reference that tag
+- **AND** applying the manifests rolls the pod onto the new image
 
 ### Requirement: Readiness signals that the DevBox is usable
 
-The DevBox SHALL report Ready only once its toolchain is installed, so a caller can wait for
-"usable" rather than merely "scheduled". Provisioning progress MUST be readable from inside the pod.
+The DevBox SHALL report Ready only once its workspace directories on the volume exist, so a caller
+can wait for "usable" rather than merely "scheduled".
 
 #### Scenario: Waiting for readiness yields a usable DevBox
 
 - **WHEN** a caller waits for the DevBox pod to become Ready
-- **THEN** the wait returns only after provisioning has finished
+- **THEN** the wait returns only after the workspace (`/work/projects`, Maven repository, npm cache)
+  is initialised
 - **AND** every tool of the toolchain requirement is executable at that point
-
-#### Scenario: Progress is observable while provisioning
-
-- **WHEN** the DevBox is still provisioning
-- **THEN** a log of the provisioning steps and their outcome can be read from the pod
 
 ### Requirement: File transfer between laptop and DevBox
 
@@ -149,7 +146,10 @@ are 8080 for a Java/Quarkus backend and 3000 for a Node.js frontend, exposed in-
 
 The DevBox SHALL deploy into the namespace of the active kubeconfig context, without creating or
 switching namespaces and without hard-coding a namespace in its manifests. It MUST satisfy the
-namespace's PodSecurity level and MUST NOT require privileged containers or host mounts.
+namespace's PodSecurity level and MUST NOT require privileged containers or host mounts. It MUST keep
+the platform's storage limits: a volume claim of at most 2Gi, and an explicit `ephemeral-storage`
+request and limit for the container that stays within the per-container (10Gi) and per-namespace
+(20Gi) maximum. Services MUST be of type ClusterIP.
 
 #### Scenario: Applying uses the context's namespace
 
@@ -161,6 +161,12 @@ namespace's PodSecurity level and MUST NOT require privileged containers or host
 
 - **WHEN** the pod is admitted under the namespace's PodSecurity level
 - **THEN** it is accepted without warnings about privileged mode or host access
+
+#### Scenario: Admission accepts the storage requests
+
+- **WHEN** the volume claim and the Deployment are applied
+- **THEN** the claim is bound and the pod is created without a refusal naming the claim size or the
+  `leocloud-node-disk` quota
 
 ### Requirement: Verified by an end-to-end acceptance test
 
