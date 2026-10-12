@@ -6,7 +6,7 @@ description: Deploy a project to LeoCloud, the Kubernetes cluster of HTL Leondin
 # LeoCloud
 
 Source: https://cloud.htl-leonding.ac.at/html/skill/leocloud/SKILL.md
-Version: 2026-10-05
+Version: 2026-10-07
 
 ## If you are reading a saved copy
 
@@ -20,6 +20,14 @@ student in one sentence which of the three cases it was.
 - The source cannot be fetched (no answer, or an error such as 404): go on with this file, and
   tell the student that this copy of the LeoCloud skill may be out of date.
 
+Then check that the repository also holds the ghcr skill, which leads the student through the
+container registry. If `.claude/skills/ghcr/SKILL.md` does not exist, save it:
+
+```
+mkdir -p .claude/skills/ghcr
+curl -fsSL https://cloud.htl-leonding.ac.at/html/skill/ghcr/SKILL.md -o .claude/skills/ghcr/SKILL.md
+```
+
 ## What LeoCloud is
 
 - LeoCloud is a Kubernetes cluster run by the school HTL Leonding. Anyone with a valid account
@@ -30,6 +38,8 @@ student in one sentence which of the three cases it was.
 - The cluster has a web console at https://dashboard.cloud.htl-leonding.ac.at. The student
   opens it with `leocloud dashboard`, which prints a token for one hour to paste into its login
   page. No template and nothing in the namespace is needed for it.
+- `kubectl top pod` shows the CPU and memory use of the student's own pods, and so does the web
+  console. The use of the nodes (`kubectl top node`) is refused.
 - The user manual is the contract. It is in German:
   https://cloud.htl-leonding.ac.at/html/user-manual.html
   If this file and the manual disagree, the manual is right.
@@ -64,15 +74,19 @@ Ask the student at the moment you need one of these. Do not try to do them alone
 3. **Installing and starting Docker.** If Docker is missing or not running, the student
    installs or starts it. You do not install it.
 
-4. **Logging in to the container registry.** The student runs `docker login ghcr.io` in their
-   own terminal, with their GitHub user name and, as password, a GitHub token that may write
-   and read packages. You do not run it and you do not ask for the password in the
-   conversation.
+4. **Creating a registry token and logging in to the container registry.** The student
+   creates a GitHub token and runs `docker login ghcr.io` in their own terminal. Lead them
+   through it with the ghcr skill (`.claude/skills/ghcr/SKILL.md`, steps 2 and 3). You do not
+   run the login and you do not ask for the token in the conversation.
 
-5. **A credential for a private image.** Where the cluster needs a credential to pull the
-   image (step 7 of the path), ask the student for it at that moment. Never write a credential
-   into a file of the repository: not into a manifest, not into a script, not into an `.env`
-   file, not into a commit.
+5. **Making the image's package public.** The student changes the visibility on GitHub. This
+   is the recommended way to let the cluster pull the image (step 7 of the path). Lead them
+   through it with the ghcr skill (steps 5 to 7), including its warning first.
+
+6. **A credential for a private image.** Only if the student decides that the package must stay
+   private, the cluster needs a credential to pull the image (step 7 of the path). Ask the
+   student for it at that moment. Never write a credential into a file of the repository: not
+   into a manifest, not into a script, not into an `.env` file, not into a commit.
 
 ## The path from a project to a running application
 
@@ -101,9 +115,10 @@ and run them on a public base image, and do not deploy a public image in place o
    ```
 
    It must print `Login Succeeded`. With the input closed it uses only the credential that is
-   already stored and cannot ask for one. If it prints anything else, ask the student to run
-   `docker login ghcr.io` in their own terminal (see above), wait until they say it is done,
-   and run the check again.
+   already stored and cannot ask for one. If it prints anything else, the student has no
+   working login: lead them through the ghcr skill, steps 2 and 3 (a token, then
+   `docker login ghcr.io` in their own terminal), wait until they say it is done, and run the
+   check again.
 
 4. **Check the login to LeoCloud.** Run `kubectl config current-context`. It must print
    `leocloud`, and `kubectl get pods` must answer without an error.
@@ -120,23 +135,42 @@ and run them on a public base image, and do not deploy a public image in place o
      `<name>.cloud.htl-leonding.ac.at`, where `<name>` is the namespace without the leading
      `student-`.
 
+   **Then ask the student once:**
+
+   > The checks passed. May I build the image, push it and deploy it to LeoCloud now? (Or would
+   > you rather run the commands yourself?)
+
+   When the student agrees, do steps 6 to 10 yourself without asking again. Stop only where the
+   student must act: making the package public in step 7. Do not give the student a build, push
+   or apply command to run. Only if the student chose to run the commands themself, give them one
+   at a time and check each result after the student says it is done. A later deploy in the same
+   conversation is asked for again, once.
+
 6. **Build the image for `linux/amd64` and push it.** Every node of the cluster is `amd64`; an
    image built on an Apple Silicon Mac without the platform option does not start. If the
-   project has no `Dockerfile`, write one. Use a new tag for every build (not only `latest`),
-   so that a new rollout really takes the new image:
+   project has no `Dockerfile`, write one. **Every build gets a new tag, made from the date and
+   time to the second.** Never reuse a tag, not even one from an earlier conversation, and never
+   use only `latest`: a node that already holds an image under that tag starts the old image
+   without asking the registry, and the new build never runs.
 
    ```
-   docker buildx build --platform linux/amd64 -t ghcr.io/<github-user>/<image>:<tag> --push .
+   tag="$(date -u +%Y%m%d-%H%M%S)"
+   docker buildx build --platform linux/amd64 -t ghcr.io/<github-user>/<image>:$tag --push .
    ```
 
-   If the push is refused although step 3 passed, the stored token may not write packages.
-   Ask the student to run `docker login ghcr.io` again with a token that may.
+   If the push is refused although step 3 passed, the stored token may not write packages or
+   has expired. Lead the student through a new token and a new login with the ghcr skill,
+   steps 2 and 3.
 
-7. **Give the cluster access to a private image.** A new package on ghcr.io is private. The
-   cluster then cannot pull it, and the pod shows `ImagePullBackOff` or `ErrImagePull`. Either
-   the student makes the package public on GitHub, or you create a pull secret. For the pull
-   secret ask the student for a GitHub token that may read packages, and create the secret
-   directly with `kubectl`, not from a file:
+7. **Give the cluster access to the image.** A new package on ghcr.io is private. The
+   cluster then cannot pull it, and the pod shows `ImagePullBackOff` or `ErrImagePull`.
+   **Recommend making the package public**, and lead the student through it with the ghcr
+   skill, steps 5 to 7: it warns first that this cannot be undone, checks the image for
+   secrets, and proves afterwards that the image can be pulled without a credential.
+
+   Only if the student decides that the package must stay private, create a pull secret. Ask
+   the student for a GitHub token that may read packages, and create the secret directly with
+   `kubectl`, not from a file:
 
    ```
    kubectl create secret docker-registry ghcr-pull \
@@ -189,6 +223,17 @@ and run them on a public base image, and do not deploy a public image in place o
      `Running`. If not, read `kubectl describe pod <pod>` and `kubectl get events`.
    - `curl -s -o /dev/null -w '%{http_code}' https://<name>.cloud.htl-leonding.ac.at/` answers
      with the status the application is expected to give, normally `200`.
+   - **The pods run the image you just built.** Compare the digest the new tag points to in the
+     registry with the image ID of every pod of the deployment:
+
+     ```
+     docker buildx imagetools inspect ghcr.io/<github-user>/<image>:$tag --format '{{.Manifest.Digest}}'; echo
+     kubectl get pods -l app=<app> -o jsonpath='{range .items[*]}{.status.containerStatuses[0].imageID}{"\n"}{end}'
+     ```
+
+     Every image ID must end in `@` followed by exactly that digest. If one differs, an old image
+     is running: tell the student so, build again with a new tag, and apply again. A hostname
+     that answers is not success on its own.
 
 ## The rules for every workload
 
@@ -204,8 +249,8 @@ These are the rules of the platform. Write manifests that keep all of them.
 - **Services are of type ClusterIP only.** Leave the type out, or write `ClusterIP`. No
   `NodePort`, no `LoadBalancer`, no `ExternalName`. An application is reachable from outside
   only through an ingress on the student's hostname.
-- **Storage.** A PersistentVolumeClaim requests at most `2Gi`, and a claim cannot be enlarged
-  beyond `2Gi`. Leave `storageClassName` out; the claim then gets the default storage class.
+- **Storage.** A PersistentVolumeClaim requests at most `20Gi`, and a claim cannot be enlarged
+  beyond `20Gi`. Leave `storageClassName` out; the claim then gets the default storage class.
   The manual: https://cloud.htl-leonding.ac.at/html/user-manual.html#services-und-speicher
 - **No access to the host.** Every namespace is held to the Kubernetes Pod Security level
   `baseline`. A pod must not ask for `hostNetwork`, `hostPID`, `hostIPC`, a `hostPath` volume,
@@ -214,8 +259,8 @@ These are the rules of the platform. Write manifests that keep all of them.
 - **Disk on the node.** What a container writes outside its volume claims — into its own file
   system (for example `/tmp`), into its logs, and into `emptyDir` volumes — is bounded
   (`ephemeral-storage`). A container that names no value gets a limit of `2Gi` and a request of
-  `100Mi`. A container may name a limit of at most `10Gi`. The limits of all pods of a namespace
-  together are at most `20Gi`; during a rollout the old and the new pod both count. Data that
+  `100Mi`. A container may name a limit of at most `20Gi`. The limits of all pods of a namespace
+  together are at most `40Gi`; during a rollout the old and the new pod both count. Data that
   grows — a database, uploaded files, backups, archives — belongs in a PersistentVolumeClaim.
   If a container needs more than `2Gi`, name both the request and the limit; a container that
   names only a request above `2Gi` is refused:
@@ -249,13 +294,13 @@ These are the rules of the platform. Write manifests that keep all of them.
 - **A pod is stopped: `kubectl get pods` shows it `Evicted` or `Error`**, and
   `kubectl describe pod <pod>` says under `Message` that it went over its local storage limit.
   The pod wrote more than its `ephemeral-storage` limit outside its volume claims. Move the data
-  that grows into a PersistentVolumeClaim, or name a higher limit, at most `10Gi`. A Deployment
+  that grows into a PersistentVolumeClaim, or name a higher limit, at most `20Gi`. A Deployment
   starts a new pod, which is stopped again if it writes as much.
 - **A pod is refused with a message naming the quota `leocloud-node-disk`**, or a Deployment's
   pods are not created and `kubectl get events` shows `FailedCreate` with that message. The pods
-  of the namespace together would name more than `20Gi` of `ephemeral-storage` limits. Delete
+  of the namespace together would name more than `40Gi` of `ephemeral-storage` limits. Delete
   workloads that are no longer needed, or name smaller limits. A refusal that names the maximum
-  per container means a container asked for more than `10Gi`. These limits cannot be changed
+  per container means a container asked for more than `20Gi`. These limits cannot be changed
   in the namespace. Manual:
   https://cloud.htl-leonding.ac.at/html/user-manual.html#speicher-am-rechner
 - **A service is refused with**
@@ -263,8 +308,8 @@ These are the rules of the platform. Write manifests that keep all of them.
   (or the same with `LoadBalancer` or `ExternalName`). Remove the `type:` line from the service,
   or write `type: ClusterIP`, and reach the application through the ingress.
 - **A PersistentVolumeClaim is refused with**
-  `LeoCloud: this volume claim requests 5Gi of storage. A claim in this namespace may request at most 2Gi, and an existing claim cannot be enlarged beyond 2Gi.`
-  Request at most `2Gi`. For a StatefulSet with `volumeClaimTemplates` the StatefulSet is
+  `LeoCloud: this volume claim requests 25Gi of storage. A claim in this namespace may request at most 20Gi, and an existing claim cannot be enlarged beyond 20Gi.`
+  Request at most `20Gi`. For a StatefulSet with `volumeClaimTemplates` the StatefulSet is
   accepted, but its claim is not created and its pod does not start; `kubectl get events` shows
   `FailedCreate` with the same message. Manual:
   https://cloud.htl-leonding.ac.at/html/user-manual.html#services-und-speicher
