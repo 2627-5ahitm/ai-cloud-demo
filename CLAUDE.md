@@ -96,6 +96,13 @@ kubectl port-forward deploy/devbox 8080:8080                 # reach an app loca
 Paths inside the pod: projects `/work/projects`, toolchains `/opt/tools`, Maven repo
 `/work/.m2/repository`, readiness marker `/work/.devbox-ready`.
 
+## Repository
+
+Remote `origin`: https://github.com/2627-5ahitm/ai-cloud-demo (private, GitHub org `2627-5ahitm`), branch
+`main` tracks `origin/main`. `gh` is logged in as `htl-leonding`.
+
+`prompts/` is tracked and pushed, but Claude must not read it (see Key constraints).
+
 ## Not yet set up
 
 No CI.
