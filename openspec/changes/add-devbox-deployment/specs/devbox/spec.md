@@ -61,8 +61,8 @@ non-interactive `kubectl exec ... -- <command>` finds every tool without sourcin
 
 Project sources and build caches SHALL live on a persistent volume so they survive pod restarts and
 rescheduling. Persisted state MUST include the projects directory, the Maven local repository and the
-npm cache. The volume claim MUST request no more than the platform's per-claim maximum (2Gi on
-LeoCloud); the toolchain therefore lives in the image, not on the volume.
+npm cache. The volume claim MUST request no more than the platform's per-claim maximum (20Gi on
+LeoCloud). The toolchain lives in the image, not on the volume.
 
 #### Scenario: Projects survive a restart
 
@@ -147,9 +147,9 @@ are 8080 for a Java/Quarkus backend and 3000 for a Node.js frontend, exposed in-
 The DevBox SHALL deploy into the namespace of the active kubeconfig context, without creating or
 switching namespaces and without hard-coding a namespace in its manifests. It MUST satisfy the
 namespace's PodSecurity level and MUST NOT require privileged containers or host mounts. It MUST keep
-the platform's storage limits: a volume claim of at most 2Gi, and an explicit `ephemeral-storage`
-request and limit for the container that stays within the per-container (10Gi) and per-namespace
-(20Gi) maximum. Services MUST be of type ClusterIP.
+the platform's storage limits: a volume claim of at most 20Gi, and an explicit `ephemeral-storage`
+request and limit for the container that stays within the per-container (20Gi) and per-namespace
+(40Gi) maximum. Services MUST be of type ClusterIP.
 
 #### Scenario: Applying uses the context's namespace
 

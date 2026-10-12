@@ -11,17 +11,17 @@ no SSH, no ingress.
 | OS | `debian:trixie-slim` (Debian 13, latest stable) |
 | JavaScript | Node.js 24 LTS + npm 11 |
 | Java | Eclipse Temurin JDK 21, Apache Maven 3.9.16, Quarkus CLI 3.39.5 |
-| Tools | Playwright 1.63 (+ Chromium), httpyac 6.16.7, curl, git, jq, build-essential |
+| Tools | Playwright 1.63 (+ Chromium), httpyac 6.16.7, Claude Code 2.1.296, curl, git, jq, build-essential |
 
 ## How it is built
 
 The toolchain is baked into an image built from `../image/Dockerfile` and pushed to
 `ghcr.io/htl-leonding/devbox`. LeoCloud requires this: workloads run from an image built
-from the project, and a PVC may request at most **2Gi**, which is too small to hold the
-toolchain.
+from the project; a public base image plus an install script is not allowed. Baking the toolchain
+in also makes a restart as fast as the image pull.
 
 ```bash
-TAG=$(date +%F).1      # new tag for every build
+TAG=$(date -u +%Y%m%d-%H%M%S)   # new tag for every build, never reused
 docker buildx build --platform linux/amd64 -t ghcr.io/htl-leonding/devbox:$TAG --push image/
 # then set images[0].newTag in k8s/kustomization.yaml to $TAG and apply
 ```
@@ -45,13 +45,23 @@ build time.
 `PLAYWRIGHT_BROWSERS_PATH` are `ENV` in the image, so a non-interactive
 `kubectl exec deploy/devbox -- mvn -v` finds everything without sourcing anything.
 
+## Claude Code
+
+Installed in the image (`claude`). Login and settings live in `CLAUDE_CONFIG_DIR=/work/.claude` on the
+PVC, so a login survives pod restarts. Log in once, interactively:
+
+```bash
+kubectl exec -it deploy/devbox -- claude      # then /login
+```
+
 ## Disk limits (LeoCloud)
 
-* **PVC**: at most 2Gi, cannot be enlarged beyond. Keep projects lean; delete `target/`
+* **PVC**: `devbox-work` requests 2Gi; LeoCloud allows up to 20Gi per claim, never more. To grow it,
+  raise `storage:` in `pvc.yaml` and apply (the StorageClass allows expansion). Delete `target/`
   and `node_modules` of projects you no longer need.
 * **Container file system** (`ephemeral-storage`, everything outside `/work`: `/tmp`,
   logs, global `npm install -g`): the Deployment requests 500Mi and limits 4Gi. Max per
-  container is 10Gi, 20Gi for all pods of the namespace together. Going over the limit
+  container is 20Gi, 40Gi for all pods of the namespace together. Going over the limit
   evicts the pod.
 
 ## Deploy / redeploy
@@ -104,8 +114,8 @@ Both live on the PVC and were built and tested inside the DevBox:
 Restart them after a pod rollout:
 
 ```bash
-kubectl exec deploy/devbox -- bash -c 'cd /work/projects/quarkus-demo && nohup java -jar target/quarkus-app/quarkus-run.jar > app.log 2>&1 & disown'
-kubectl exec deploy/devbox -- bash -c 'cd /work/projects/node-frontend && nohup node server.js > app.log 2>&1 & disown'
+kubectl exec deploy/devbox -- bash -c 'cd /work/projects/quarkus-demo && nohup java -jar target/quarkus-app/quarkus-run.jar > app.log 2>&1 < /dev/null & disown'
+kubectl exec deploy/devbox -- bash -c 'cd /work/projects/node-frontend && nohup node server.js > app.log 2>&1 < /dev/null & disown'
 ```
 
 ## Gotchas

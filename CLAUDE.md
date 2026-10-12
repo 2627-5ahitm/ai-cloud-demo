@@ -57,7 +57,7 @@ conventions and per-artifact rules there once decisions are made.
 | File | What |
 |------|------|
 | `image/Dockerfile` | `debian:trixie-slim` + whole toolchain under `/opt/tools`, versions pinned as `ARG`s, tool env as `ENV` |
-| `k8s/pvc.yaml` | `devbox-work`, 2Gi (LeoCloud maximum), default StorageClass |
+| `k8s/pvc.yaml` | `devbox-work`, 2Gi (LeoCloud allows up to 20Gi), default StorageClass |
 | `k8s/deployment.yaml` | one pod, image `ghcr.io/htl-leonding/devbox`, `sleep infinity`, PVC on `/work`, ephemeral-storage 500Mi/4Gi |
 | `k8s/service.yaml` | ClusterIP `devbox`, ports 8080 (Quarkus) / 3000 (Node) |
 | `k8s/kustomization.yaml` | resources + `images:` with the current tag, no namespace |
@@ -66,9 +66,10 @@ The toolchain lives in the image, built `linux/amd64` and pushed to ghcr.io (`do
 done by the user). New build → new tag → bump `newTag` in `kustomization.yaml` → `kubectl apply -k k8s/`.
 The PVC only holds projects, the Maven repo and the npm cache.
 
-LeoCloud rules (skill `.claude/skills/leocloud/SKILL.md`, follow it for anything deployment-related): PVC max
-2Gi and never enlarged beyond; ephemeral-storage default 2Gi/container, max 10Gi/container, 20Gi per
-namespace (quota `leocloud-node-disk`); PodSecurity **baseline** (`runAsUser: 0` fine, privileged not);
+LeoCloud rules (skills `.claude/skills/leocloud/SKILL.md` and `.claude/skills/ghcr/SKILL.md`, follow them for
+anything deployment-related): PVC max 20Gi and never enlarged beyond; ephemeral-storage default 2Gi/container,
+max 20Gi/container, 40Gi per namespace (quota `leocloud-node-disk`); every image build gets a new tag
+`$(date -u +%Y%m%d-%H%M%S)`, and after a rollout the pod's image digest must match the pushed tag; PodSecurity **baseline** (`runAsUser: 0` fine, privileged not);
 ClusterIP services only; images must be built from the project and pushed, not public base images + scripts.
 Never delete a PVC or the namespace without explicit user confirmation.
 
@@ -77,7 +78,8 @@ Cluster facts (namespace `student-t-stuetz`, context `leocloud`): k8s server 1.3
 it alone.
 
 Installed and verified: Node 24.21 + npm 11.19, Temurin JDK 21.0.12 LTS, Maven 3.9.16, Quarkus CLI 3.39.5,
-httpyac 6.16.7, Playwright 1.63.0 + Chromium, curl 8.14, git, jq, build-essential.
+httpyac 6.16.7, Playwright 1.63.0 + Chromium, Claude Code 2.1.296 (config in `/work/.claude`), curl 8.14, git,
+jq, build-essential.
 
 ## Commands
 

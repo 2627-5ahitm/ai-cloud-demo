@@ -54,6 +54,12 @@ referenced via `images:` in `kustomization.yaml`, so a rollout really pulls the 
 `$M2_HOME/conf/settings.xml`) and the npm cache. The container gets `ephemeral-storage` 500Mi request
 / 4Gi limit for `/tmp` and browser scratch, within LeoCloud's 10Gi per container / 20Gi per namespace.
 
+**Limits raised 2026-10-07.** LeoCloud now allows a claim of up to 20Gi and ephemeral-storage up to
+20Gi per container / 40Gi per namespace. The prebuilt image stays (the platform still forbids the
+public-image-plus-script approach, and restarts are faster); the PVC stays at 2Gi until it fills up.
+Image tags are now `date -u +%Y%m%d-%H%M%S`, and a rollout is only done once the pod's image digest
+matches the pushed tag.
+
 **Readiness = workspace initialised.** The start command creates the `/work` directories and touches
 `/work/.devbox-ready`; the probe checks that file. Ready arrives as soon as the image is pulled.
 
