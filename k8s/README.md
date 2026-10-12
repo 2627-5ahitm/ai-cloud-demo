@@ -11,7 +11,7 @@ no SSH, no ingress.
 | OS | `debian:trixie-slim` (Debian 13, latest stable) |
 | JavaScript | Node.js 24 LTS + npm 11 |
 | Java | Eclipse Temurin JDK 21, Apache Maven 3.9.16, Quarkus CLI 3.39.5 |
-| Tools | Playwright 1.63 (+ Chromium), httpyac 6.16.7, Claude Code 2.1.296, curl, git, jq, build-essential |
+| Tools | Playwright 1.63 (+ Chromium), httpyac 6.16.7, Claude Code 2.1.296, tmux, curl, git, jq, build-essential |
 
 ## How it is built
 
@@ -52,6 +52,16 @@ PVC, so a login survives pod restarts. Log in once, interactively:
 
 ```bash
 kubectl exec -it deploy/devbox -- claude      # then /login
+```
+
+A long-running session lives in tmux (session `claude`), so it survives closing the terminal and can be
+driven via `/remote-control` from claude.ai or the phone. It does **not** survive a pod restart; start it
+again afterwards (the login stays):
+
+```bash
+kubectl exec deploy/devbox -- tmux new-session -d -s claude -x 200 -y 50 -c /work/projects claude
+kubectl exec -it deploy/devbox -- tmux attach -t claude       # detach: Ctrl-b d
+kubectl exec deploy/devbox -- tmux capture-pane -p -t claude  # peek without attaching
 ```
 
 ## Disk limits (LeoCloud)
@@ -114,8 +124,8 @@ Both live on the PVC and were built and tested inside the DevBox:
 Restart them after a pod rollout:
 
 ```bash
-kubectl exec deploy/devbox -- bash -c 'cd /work/projects/quarkus-demo && nohup java -jar target/quarkus-app/quarkus-run.jar > app.log 2>&1 < /dev/null & disown'
-kubectl exec deploy/devbox -- bash -c 'cd /work/projects/node-frontend && nohup node server.js > app.log 2>&1 < /dev/null & disown'
+kubectl exec deploy/devbox -- bash -c 'cd /work/projects/quarkus-demo && setsid nohup java -jar target/quarkus-app/quarkus-run.jar > app.log 2>&1 < /dev/null & disown'
+kubectl exec deploy/devbox -- bash -c 'cd /work/projects/node-frontend && setsid nohup node server.js > app.log 2>&1 < /dev/null & disown'
 ```
 
 ## Gotchas
@@ -135,7 +145,8 @@ kubectl exec deploy/devbox -- bash -c 'cd /work/projects/node-frontend && nohup 
   see a global package from a project. Install it locally per project with
   `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install --no-save @playwright/test@1.63.0` — the browsers
   from `PLAYWRIGHT_BROWSERS_PATH=/opt/tools/ms-playwright` are reused, nothing is re-downloaded.
-* **Background processes**: apps started with `nohup ... & disown` inside the pod die when the pod
+* **Background processes**: start apps with `setsid nohup ... < /dev/null & disown` — without `setsid`
+  `kubectl exec` hangs until the app exits. They die when the pod
   restarts (only `/work` survives). Restart them after a rollout.
 * **NFS-backed PVC**: mediocre IOPS for huge `node_modules` trees. Works, but a big `npm ci` is
   slower than on a local disk. `df` shows the whole NFS share, not the 2Gi claim.

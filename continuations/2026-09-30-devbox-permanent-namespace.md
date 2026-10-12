@@ -7,7 +7,7 @@ Paste this whole file as the first prompt of a fresh Claude Code session in
 
 ## Situation
 
-The DevBox from the brief (`prompts/chat.md`) was built and verified yesterday (2026-09-29) in the
+The DevBox from the brief (`../prompts/devbox.md`) was built and verified yesterday (2026-09-29) in the
 **scratch namespace `student-testc20`**, which was deleted that night. Everything in the cluster is
 gone: Deployment, Service, ConfigMap, the 20Gi PVC and the two demo apps that lived on it.
 
@@ -169,7 +169,7 @@ Yesterday's result, for comparison: Quarkus 5 unit tests green, 6/6 httpyac; Nod
 
 ## Context you may need
 
-* The brief is `prompts/chat.md` (German). `prompts/superbox.md` is a **separate** idea: a second
+* The brief is `../prompts/devbox.md` (German). `prompts/superbox.md` is a **separate** idea: a second
   deployment running claude-cli that drives the DevBox via `kubectl exec`/`cp`. It is not part of this
   task. If it comes up: a pod needs `serviceAccountName` bound to a Role with `pods`, `pods/exec`,
   `pods/log`, `pods/portforward` — in the scratch namespace only SA `testc20` had any binding, and it

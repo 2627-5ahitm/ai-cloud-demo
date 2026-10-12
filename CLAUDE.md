@@ -4,10 +4,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repo is
 
-The task brief is `chat.md`; `k8s/` holds the DevBox deployment (see `k8s/README.md`). No application code
+The task brief is `devbox.md`; `k8s/` holds the DevBox deployment (see `k8s/README.md`). No application code
 of its own — apps are created *inside* the DevBox under `/work/projects`.
 
-Goal (`chat.md`, German): build a **DevBox** — a Kubernetes deployment on the HTL Leonding cloud
+Goal (`devbox.md`, German): build a **DevBox** — a Kubernetes deployment on the HTL Leonding cloud
 (https://cloud.htl-leonding.ac.at) that serves as a remote build/test/deploy environment, so work does
 not run on the user's laptop. A later AI agent drives that container via `kubectl exec` and `kubectl cp`.
 

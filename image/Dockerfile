@@ -30,7 +30,7 @@ ENV TOOLS=/opt/tools \
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       ca-certificates curl wget git unzip zip xz-utils tar gzip bzip2 \
-      procps less vim-tiny jq openssl gnupg locales tini \
+      procps less vim-tiny jq openssl gnupg locales tini tmux \
       build-essential python3 \
  && rm -rf /var/lib/apt/lists/*
 
