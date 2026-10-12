@@ -1,9 +1,9 @@
 # DevBox image: Debian + the whole toolchain baked in.
 # Workloads on LeoCloud run from an image built here and pushed to ghcr.io;
-# the PVC (max 2Gi) only holds projects and caches under /work.
+# the PVC only holds projects and caches under /work.
 #
 #   docker buildx build --platform linux/amd64 \
-#     -t ghcr.io/htl-leonding/devbox:<tag> --push image/
+#     -t ghcr.io/htl-leonding/devbox:"$(date -u +%Y%m%d-%H%M%S)" --push image/
 
 FROM debian:trixie-slim
 
@@ -13,6 +13,7 @@ ARG MAVEN_VERSION=3.9.16
 ARG QUARKUS_VERSION=3.39.5
 ARG HTTPYAC_VERSION=6.16.7
 ARG PLAYWRIGHT_VERSION=1.63.0
+ARG CLAUDE_CODE_VERSION=2.1.296
 
 ENV TOOLS=/opt/tools \
     JAVA_HOME=/opt/tools/jdk \
@@ -22,6 +23,7 @@ ENV TOOLS=/opt/tools \
     PLAYWRIGHT_BROWSERS_PATH=/opt/tools/ms-playwright \
     PATH=/opt/tools/node/bin:/opt/tools/npm-global/bin:/opt/tools/jdk/bin:/opt/tools/maven/bin:/opt/tools/quarkus/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
     LANG=C.UTF-8 \
+    CLAUDE_CONFIG_DIR=/work/.claude \
     HOME=/root \
     DEBIAN_FRONTEND=noninteractive
 
@@ -71,6 +73,13 @@ RUN set -eux; \
     playwright install --with-deps chromium; \
     rm -rf /tmp/npm-cache /var/lib/apt/lists/*; \
     httpyac --version; playwright --version
+
+# Claude Code; login and settings live on the PVC (CLAUDE_CONFIG_DIR) and survive restarts
+RUN set -eux; \
+    NPM_CONFIG_CACHE=/tmp/npm-cache npm install -g --no-fund --no-audit \
+      "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}"; \
+    rm -rf /tmp/npm-cache; \
+    claude --version
 
 RUN mkdir -p /work/projects
 WORKDIR /work/projects

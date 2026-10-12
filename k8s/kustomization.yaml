@@ -13,4 +13,4 @@ resources:
 # really pulls the new image.
 images:
   - name: ghcr.io/htl-leonding/devbox
-    newTag: 2026-10-05.1
+    newTag: "20261012-115832"
